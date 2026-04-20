@@ -1,0 +1,1 @@
+{"id":"mo4ojjgmqwoh","status":"error","error":"TP=120% is a price-distance %, not a PnL %. A value ≥ 100% makes SHORT take-profits physically impossible (negative price). For 120% PnL at 15x leverage use TP = 8%."}

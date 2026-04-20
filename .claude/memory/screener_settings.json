@@ -1,0 +1,6 @@
+{
+  "pumpPct": 9,
+  "periodMin": 30,
+  "intervalSec": 25,
+  "cooldownMin": 30
+}

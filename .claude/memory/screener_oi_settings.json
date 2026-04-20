@@ -1,0 +1,11 @@
+{
+  "interval_minutes": 1,
+  "oi_change_pct": 5,
+  "volume_multiplier": 5,
+  "volume_lookback_candles": 20,
+  "timeframes": [
+    5,
+    20,
+    60
+  ]
+}

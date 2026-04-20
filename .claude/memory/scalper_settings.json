@@ -1,0 +1,63 @@
+{
+  "s1": {
+    "leverage": 25,
+    "riskPct": 1,
+    "tp": 15,
+    "sl": 5,
+    "maxTrades": 10,
+    "marginMode": "crossed",
+    "timeframe": "H1",
+    "rsiPeriod": 14,
+    "rsiOversold": 25,
+    "rsiOverbought": 70,
+    "emaEnabled": false,
+    "emaPeriod": 100,
+    "emaTf": "Min60",
+    "cooldownMin": 10,
+    "minVol24h": 50000,
+    "symbols": {
+      "BTCUSDT": {
+        "enabled": false
+      },
+      "ETHUSDT": {
+        "enabled": false
+      }
+    }
+  },
+  "s2": {
+    "leverage": 20,
+    "riskPct": 1,
+    "tp": 80,
+    "sl": 25,
+    "maxTrades": 5,
+    "marginMode": "crossed",
+    "vwapDeviation": 0.3,
+    "minImpulse": 5,
+    "trailingStop": true,
+    "trailActivation": 1,
+    "trailDistance": 0.5,
+    "sessionFilter": false,
+    "sessionFrom": "",
+    "sessionUntil": "",
+    "sessionTz": "UTC"
+  },
+  "s3": {
+    "leverage": 50,
+    "riskPct": 2,
+    "minRR": 4,
+    "slPct": 10,
+    "maxTrades": 5,
+    "marginMode": "crossed",
+    "minWallSize": 50000,
+    "maxSpread": 0.2,
+    "fibLevel": 0.618,
+    "shortOnly": true,
+    "negTpGuard": true,
+    "excludedSymbols": "XAUTUSDT"
+  },
+  "hunter": {
+    "leverage": 20,
+    "riskPct": 1,
+    "maxTrades": 5
+  }
+}

@@ -1,0 +1,481 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  HUNTER AGENT — ICT/SMC Strategy (Pine Script v5)          ║
+// ║  Timeframe: 1H chart  |  No Kill Zones                     ║
+// ║                                                              ║
+// ║  HOW TO USE:                                                 ║
+// ║  1. Open TradingView on a 1H chart                          ║
+// ║  2. Paste this script → Add to chart                        ║
+// ║  3. Create Alert → Condition: "Any alert() function call"   ║
+// ║  4. Notifications → Webhook URL:                            ║
+// ║     http://87.106.161.38:3001/webhook                       ║
+// ║  5. Message field: leave default (payload sent via alert())  ║
+// ╚══════════════════════════════════════════════════════════════╝
+//@version=5
+strategy(
+    title             = "Hunter Agent — ICT/SMC [No Kill Zones]",
+    overlay           = true,
+    default_qty_type  = strategy.percent_of_equity,
+    default_qty_value = 1,
+    initial_capital   = 10000,
+    commission_type   = strategy.commission.percent,
+    commission_value  = 0.05,
+    max_boxes_count   = 100,
+    max_lines_count   = 100,
+    max_labels_count  = 100
+)
+
+// ══════════════════════════════════════════════════════════════
+//  INPUTS
+// ══════════════════════════════════════════════════════════════
+grpS = "Structure"
+grpR = "Risk"
+grpD = "Display"
+
+i_swing  = input.int  (10,    "Pivot Swing Length",    minval=3,    maxval=50,  group=grpS)
+i_ema_d  = input.int  (50,    "Daily Trend EMA",       minval=10,   maxval=200, group=grpS)
+i_ema_4h = input.int  (20,    "4H Trend EMA",          minval=5,    maxval=100, group=grpS)
+i_buf    = input.float(0.1,   "SL Buffer %",           minval=0.01, step=0.01,  group=grpR)
+i_rr1    = input.float(3.0,   "TP1 Min RR",            minval=1.0,  step=0.5,   group=grpR)
+i_rr2    = input.float(5.0,   "TP2 Min RR",            minval=2.0,  step=0.5,   group=grpR)
+i_sh_d   = input.bool (true,  "Show Daily FVG Zones",              group=grpD)
+i_sh_4h  = input.bool (true,  "Show 4H FVG Zones",                 group=grpD)
+i_sh_ob  = input.bool (true,  "Show Order Blocks",                  group=grpD)
+i_sh_sig = input.bool (true,  "Show Entry Signals",                 group=grpD)
+i_sh_mss = input.bool (true,  "Show MSS Labels",                    group=grpD)
+
+// ══════════════════════════════════════════════════════════════
+//  HELPER
+// ══════════════════════════════════════════════════════════════
+// Round to sensible decimal places based on price magnitude
+f_round(x) =>
+    math.round(x, close >= 100 ? 2 : close >= 1 ? 4 : 6)
+
+// ══════════════════════════════════════════════════════════════
+//  DAILY TIMEFRAME — TREND
+// ══════════════════════════════════════════════════════════════
+d_ema   = request.security(syminfo.tickerid, "D", ta.ema(close, i_ema_d), lookahead=barmerge.lookahead_off)
+d_close = request.security(syminfo.tickerid, "D", close,                   lookahead=barmerge.lookahead_off)
+d_bull  = d_close > d_ema   // true = bullish daily bias
+
+// ──────────────────────────────────────────────────────────────
+//  DAILY — FVG (3-candle imbalance)
+//   Bullish FVG : high[2] < low[0]  → gap below current bar
+//   Bearish FVG : low[2]  > high[0] → gap above current bar
+// ──────────────────────────────────────────────────────────────
+[d_h0, d_l0, d_h2, d_l2] = request.security(syminfo.tickerid, "D",
+    [high, low, high[2], low[2]], lookahead=barmerge.lookahead_off)
+
+d_bfvg_cond = d_h2 < d_l0          // bullish imbalance exists
+d_bfvg_top  = d_l0                  // zone top  (price returns from above)
+d_bfvg_bot  = d_h2                  // zone bottom
+
+d_sfvg_cond = d_l2 > d_h0          // bearish imbalance exists
+d_sfvg_top  = d_l2                  // zone top
+d_sfvg_bot  = d_h0                  // zone bottom (price returns from below)
+
+// Persist active Daily FVG zones until price trades through them
+var float d_bfvg_z_top = na
+var float d_bfvg_z_bot = na
+var float d_sfvg_z_top = na
+var float d_sfvg_z_bot = na
+
+if d_bfvg_cond and d_bull           // only track bull FVG in bullish trend
+    d_bfvg_z_top := d_bfvg_top
+    d_bfvg_z_bot := d_bfvg_bot
+
+if d_sfvg_cond and not d_bull       // only track bear FVG in bearish trend
+    d_sfvg_z_top := d_sfvg_top
+    d_sfvg_z_bot := d_sfvg_bot
+
+// Mitigate (invalidate) when price closes fully through the zone
+if not na(d_bfvg_z_bot) and close < d_bfvg_z_bot
+    d_bfvg_z_top := na
+    d_bfvg_z_bot := na
+
+if not na(d_sfvg_z_top) and close > d_sfvg_z_top
+    d_sfvg_z_top := na
+    d_sfvg_z_bot := na
+
+// ──────────────────────────────────────────────────────────────
+//  DAILY — ORDER BLOCK
+//   Bullish OB : last bearish candle immediately before bullish move
+//   Bearish OB : last bullish candle immediately before bearish move
+// ──────────────────────────────────────────────────────────────
+[d_bob_h, d_bob_l] = request.security(syminfo.tickerid, "D", [
+    ta.valuewhen(close[1] < open[1] and close > open, open[1], 0),
+    ta.valuewhen(close[1] < open[1] and close > open, low[1],  0)
+], lookahead=barmerge.lookahead_off)
+
+[d_sob_h, d_sob_l] = request.security(syminfo.tickerid, "D", [
+    ta.valuewhen(close[1] > open[1] and close < open, high[1], 0),
+    ta.valuewhen(close[1] > open[1] and close < open, close[1],0)
+], lookahead=barmerge.lookahead_off)
+
+// Daily swing extremes for TP2
+d_sh20 = request.security(syminfo.tickerid, "D", ta.highest(high, 20), lookahead=barmerge.lookahead_off)
+d_sl20 = request.security(syminfo.tickerid, "D", ta.lowest (low,  20), lookahead=barmerge.lookahead_off)
+
+// ──────────────────────────────────────────────────────────────
+//  DAILY — ZONE MEMBERSHIP
+// ──────────────────────────────────────────────────────────────
+in_d_bfvg = not na(d_bfvg_z_top) and close >= d_bfvg_z_bot and close <= d_bfvg_z_top
+in_d_sfvg = not na(d_sfvg_z_top) and close >= d_sfvg_z_bot and close <= d_sfvg_z_top
+in_d_bob  = d_bull      and not na(d_bob_h) and close >= d_bob_l and close <= d_bob_h
+in_d_sob  = not d_bull  and not na(d_sob_h) and close >= d_sob_l and close <= d_sob_h
+
+in_d_bull_zone = in_d_bfvg or in_d_bob
+in_d_bear_zone = in_d_sfvg or in_d_sob
+
+// SL anchor — bottom of bullish zone / top of bearish zone
+d_bull_sl_ref = in_d_bfvg ? d_bfvg_z_bot : d_bob_l
+d_bear_sl_ref = in_d_sfvg ? d_sfvg_z_top : d_sob_h
+
+// ══════════════════════════════════════════════════════════════
+//  4H TIMEFRAME — TREND
+// ══════════════════════════════════════════════════════════════
+h4_ema   = request.security(syminfo.tickerid, "240", ta.ema(close, i_ema_4h), lookahead=barmerge.lookahead_off)
+h4_close = request.security(syminfo.tickerid, "240", close,                    lookahead=barmerge.lookahead_off)
+h4_bull  = h4_close > h4_ema and d_bull   // 4H must agree with Daily
+
+// ──────────────────────────────────────────────────────────────
+//  4H — FVG
+// ──────────────────────────────────────────────────────────────
+[h4_h0, h4_l0, h4_h2, h4_l2] = request.security(syminfo.tickerid, "240",
+    [high, low, high[2], low[2]], lookahead=barmerge.lookahead_off)
+
+h4_bfvg_cond = h4_h2 < h4_l0
+h4_bfvg_top  = h4_l0
+h4_bfvg_bot  = h4_h2
+
+h4_sfvg_cond = h4_l2 > h4_h0
+h4_sfvg_top  = h4_l2
+h4_sfvg_bot  = h4_h0
+
+var float h4_bfvg_z_top = na
+var float h4_bfvg_z_bot = na
+var float h4_sfvg_z_top = na
+var float h4_sfvg_z_bot = na
+
+if h4_bfvg_cond and h4_bull
+    h4_bfvg_z_top := h4_bfvg_top
+    h4_bfvg_z_bot := h4_bfvg_bot
+
+if h4_sfvg_cond and not h4_bull
+    h4_sfvg_z_top := h4_sfvg_top
+    h4_sfvg_z_bot := h4_sfvg_bot
+
+if not na(h4_bfvg_z_bot) and close < h4_bfvg_z_bot
+    h4_bfvg_z_top := na
+    h4_bfvg_z_bot := na
+
+if not na(h4_sfvg_z_top) and close > h4_sfvg_z_top
+    h4_sfvg_z_top := na
+    h4_sfvg_z_bot := na
+
+// ──────────────────────────────────────────────────────────────
+//  4H — ORDER BLOCK
+// ──────────────────────────────────────────────────────────────
+[h4_bob_h, h4_bob_l] = request.security(syminfo.tickerid, "240", [
+    ta.valuewhen(close[1] < open[1] and close > open, open[1], 0),
+    ta.valuewhen(close[1] < open[1] and close > open, low[1],  0)
+], lookahead=barmerge.lookahead_off)
+
+[h4_sob_h, h4_sob_l] = request.security(syminfo.tickerid, "240", [
+    ta.valuewhen(close[1] > open[1] and close < open, high[1], 0),
+    ta.valuewhen(close[1] > open[1] and close < open, close[1],0)
+], lookahead=barmerge.lookahead_off)
+
+// 4H swing extremes for TP1
+h4_sh20 = request.security(syminfo.tickerid, "240", ta.highest(high, 20), lookahead=barmerge.lookahead_off)
+h4_sl20 = request.security(syminfo.tickerid, "240", ta.lowest (low,  20), lookahead=barmerge.lookahead_off)
+
+// ──────────────────────────────────────────────────────────────
+//  4H — ZONE MEMBERSHIP & CONFIRMATION
+// ──────────────────────────────────────────────────────────────
+in_h4_bfvg = not na(h4_bfvg_z_top) and close >= h4_bfvg_z_bot and close <= h4_bfvg_z_top
+in_h4_sfvg = not na(h4_sfvg_z_top) and close >= h4_sfvg_z_bot and close <= h4_sfvg_z_top
+in_h4_bob  = h4_bull     and not na(h4_bob_h) and close >= h4_bob_l and close <= h4_bob_h
+in_h4_sob  = not h4_bull and not na(h4_sob_h) and close >= h4_sob_l and close <= h4_sob_h
+
+h4_bull_confirm = in_h4_bfvg or in_h4_bob
+h4_bear_confirm = in_h4_sfvg or in_h4_sob
+
+h4_bull_sl_ref = in_h4_bfvg ? h4_bfvg_z_bot : h4_bob_l
+h4_bear_sl_ref = in_h4_sfvg ? h4_sfvg_z_top : h4_sob_h
+
+// ══════════════════════════════════════════════════════════════
+//  1H — MARKET STRUCTURE SHIFT (MSS)
+//   Run on the chart's native timeframe (must be 1H)
+//   Bullish MSS : close breaks ABOVE last confirmed swing high
+//   Bearish MSS : close breaks BELOW last confirmed swing low
+// ══════════════════════════════════════════════════════════════
+ph = ta.pivothigh(high, i_swing, i_swing)
+pl = ta.pivotlow (low,  i_swing, i_swing)
+
+var float last_ph = na
+var float last_pl = na
+
+if not na(ph)
+    last_ph := ph
+if not na(pl)
+    last_pl := pl
+
+mss_bull = not na(last_ph) and ta.crossover (close, last_ph)
+mss_bear = not na(last_pl) and ta.crossunder(close, last_pl)
+
+// ══════════════════════════════════════════════════════════════
+//  COMBINED ENTRY CONDITIONS  (all must be true)
+// ══════════════════════════════════════════════════════════════
+no_pos = strategy.position_size == 0
+
+long_setup = d_bull           // 1. Daily bullish bias
+    and in_d_bull_zone        // 2. Price inside Daily FVG or Bullish OB
+    and h4_bull_confirm       // 3. 4H FVG or Bullish OB also active
+    and mss_bull              // 4. 1H MSS — break above swing high
+    and no_pos
+
+short_setup = not d_bull      // 1. Daily bearish bias
+    and in_d_bear_zone        // 2. Price inside Daily FVG or Bearish OB
+    and h4_bear_confirm       // 3. 4H FVG or Bearish OB also active
+    and mss_bear              // 4. 1H MSS — break below swing low
+    and no_pos
+
+// ══════════════════════════════════════════════════════════════
+//  SL / TP CALCULATIONS
+// ══════════════════════════════════════════════════════════════
+buf = close * (i_buf / 100)
+
+// SL: tightest zone bottom/top across active Daily + 4H zones, plus buffer
+long_sl_ref  = h4_bull_confirm
+    ? math.min(d_bull_sl_ref, h4_bull_sl_ref)
+    : d_bull_sl_ref
+long_sl = long_sl_ref - buf
+
+short_sl_ref = h4_bear_confirm
+    ? math.max(d_bear_sl_ref, h4_bear_sl_ref)
+    : d_bear_sl_ref
+short_sl = short_sl_ref + buf
+
+long_risk  = close - long_sl
+short_risk = short_sl - close
+
+// TP1: nearest 4H swing high/low — enforce minimum RR
+long_tp1  = (long_risk  > 0 and (h4_sh20 - close) / long_risk  >= i_rr1) ? h4_sh20 : close + long_risk  * i_rr1
+short_tp1 = (short_risk > 0 and (close - h4_sl20) / short_risk >= i_rr1) ? h4_sl20 : close - short_risk * i_rr1
+
+// TP2: Daily swing high/low — enforce minimum RR
+long_tp2  = (long_risk  > 0 and (d_sh20 - close) / long_risk  >= i_rr2) ? d_sh20 : close + long_risk  * i_rr2
+short_tp2 = (short_risk > 0 and (close - d_sl20) / short_risk >= i_rr2) ? d_sl20 : close - short_risk * i_rr2
+
+// Gate: only trade if TP1 clears minimum RR
+long_valid  = long_risk  > 0 and (long_tp1  - close)  / long_risk  >= i_rr1
+short_valid = short_risk > 0 and (close  - short_tp1) / short_risk >= i_rr1
+
+// ══════════════════════════════════════════════════════════════
+//  WEBHOOK PAYLOAD (JSON)
+// ══════════════════════════════════════════════════════════════
+sym = syminfo.ticker
+
+long_payload = '{"agent":"hunter"'
+    + ',"symbol":"'  + sym + '"'
+    + ',"action":"buy"'
+    + ',"entry":'    + str.tostring(f_round(close))
+    + ',"sl":'       + str.tostring(f_round(long_sl))
+    + ',"tp1":'      + str.tostring(f_round(long_tp1))
+    + ',"tp2":'      + str.tostring(f_round(long_tp2))
+    + ',"tf":"1h"'
+    + ',"setup":"ICT/FVG+MSS"'
+    + ',"secret":"tradingoffice2024"}'
+
+short_payload = '{"agent":"hunter"'
+    + ',"symbol":"'  + sym + '"'
+    + ',"action":"sell"'
+    + ',"entry":'    + str.tostring(f_round(close))
+    + ',"sl":'       + str.tostring(f_round(short_sl))
+    + ',"tp1":'      + str.tostring(f_round(short_tp1))
+    + ',"tp2":'      + str.tostring(f_round(short_tp2))
+    + ',"tf":"1h"'
+    + ',"setup":"ICT/FVG+MSS"'
+    + ',"secret":"tradingoffice2024"}'
+
+// ══════════════════════════════════════════════════════════════
+//  STRATEGY EXECUTION
+// ══════════════════════════════════════════════════════════════
+if long_setup and long_valid
+    strategy.entry("Long", strategy.long, comment="HUNTER LONG", alert_message=long_payload)
+    // 50% closes at TP1, remaining 50% at TP2; hard SL for both legs
+    strategy.exit("L-TP1", from_entry="Long", qty_percent=50,  limit=long_tp1,  stop=long_sl)
+    strategy.exit("L-TP2", from_entry="Long", qty_percent=100, limit=long_tp2,  stop=long_sl)
+    alert(long_payload, alert.freq_once_per_bar_close)
+
+if short_setup and short_valid
+    strategy.entry("Short", strategy.short, comment="HUNTER SHORT", alert_message=short_payload)
+    strategy.exit("S-TP1", from_entry="Short", qty_percent=50,  limit=short_tp1, stop=short_sl)
+    strategy.exit("S-TP2", from_entry="Short", qty_percent=100, limit=short_tp2, stop=short_sl)
+    alert(short_payload, alert.freq_once_per_bar_close)
+
+// ══════════════════════════════════════════════════════════════
+//  VISUALS — FVG BOXES
+// ══════════════════════════════════════════════════════════════
+
+// Daily Bullish FVG
+var box box_d_bfvg = na
+if i_sh_d
+    if not na(d_bfvg_z_top)
+        if na(box_d_bfvg)
+            box_d_bfvg := box.new(bar_index - 60, d_bfvg_z_top, bar_index + 20, d_bfvg_z_bot,
+                border_color=color.new(color.green, 40),
+                bgcolor     =color.new(color.green, 82),
+                text="D FVG ▲", text_color=color.green, text_size=size.tiny)
+        else
+            box.set_right (box_d_bfvg, bar_index + 20)
+            box.set_top   (box_d_bfvg, d_bfvg_z_top)
+            box.set_bottom(box_d_bfvg, d_bfvg_z_bot)
+    else if not na(box_d_bfvg)
+        box.delete(box_d_bfvg)
+        box_d_bfvg := na
+
+// Daily Bearish FVG
+var box box_d_sfvg = na
+if i_sh_d
+    if not na(d_sfvg_z_top)
+        if na(box_d_sfvg)
+            box_d_sfvg := box.new(bar_index - 60, d_sfvg_z_top, bar_index + 20, d_sfvg_z_bot,
+                border_color=color.new(color.red, 40),
+                bgcolor     =color.new(color.red, 82),
+                text="D FVG ▼", text_color=color.red, text_size=size.tiny)
+        else
+            box.set_right (box_d_sfvg, bar_index + 20)
+            box.set_top   (box_d_sfvg, d_sfvg_z_top)
+            box.set_bottom(box_d_sfvg, d_sfvg_z_bot)
+    else if not na(box_d_sfvg)
+        box.delete(box_d_sfvg)
+        box_d_sfvg := na
+
+// 4H Bullish FVG
+var box box_h4_bfvg = na
+if i_sh_4h
+    if not na(h4_bfvg_z_top)
+        if na(box_h4_bfvg)
+            box_h4_bfvg := box.new(bar_index - 30, h4_bfvg_z_top, bar_index + 10, h4_bfvg_z_bot,
+                border_color=color.new(color.lime, 50),
+                bgcolor     =color.new(color.lime, 87),
+                text="4H FVG ▲", text_color=color.lime, text_size=size.tiny)
+        else
+            box.set_right (box_h4_bfvg, bar_index + 10)
+            box.set_top   (box_h4_bfvg, h4_bfvg_z_top)
+            box.set_bottom(box_h4_bfvg, h4_bfvg_z_bot)
+    else if not na(box_h4_bfvg)
+        box.delete(box_h4_bfvg)
+        box_h4_bfvg := na
+
+// 4H Bearish FVG
+var box box_h4_sfvg = na
+if i_sh_4h
+    if not na(h4_sfvg_z_top)
+        if na(box_h4_sfvg)
+            box_h4_sfvg := box.new(bar_index - 30, h4_sfvg_z_top, bar_index + 10, h4_sfvg_z_bot,
+                border_color=color.new(color.orange, 50),
+                bgcolor     =color.new(color.orange, 87),
+                text="4H FVG ▼", text_color=color.orange, text_size=size.tiny)
+        else
+            box.set_right (box_h4_sfvg, bar_index + 10)
+            box.set_top   (box_h4_sfvg, h4_sfvg_z_top)
+            box.set_bottom(box_h4_sfvg, h4_sfvg_z_bot)
+    else if not na(box_h4_sfvg)
+        box.delete(box_h4_sfvg)
+        box_h4_sfvg := na
+
+// ══════════════════════════════════════════════════════════════
+//  VISUALS — ORDER BLOCKS (horizontal plot lines)
+// ══════════════════════════════════════════════════════════════
+plot(i_sh_ob and d_bull     and not na(d_bob_h) ? d_bob_h : na,
+     "D Bull OB High", color.new(color.teal,   30), 1, plot.style_linebr)
+plot(i_sh_ob and d_bull     and not na(d_bob_l) ? d_bob_l : na,
+     "D Bull OB Low",  color.new(color.teal,   55), 1, plot.style_linebr)
+plot(i_sh_ob and not d_bull and not na(d_sob_h) ? d_sob_h : na,
+     "D Bear OB High", color.new(color.maroon, 30), 1, plot.style_linebr)
+plot(i_sh_ob and not d_bull and not na(d_sob_l) ? d_sob_l : na,
+     "D Bear OB Low",  color.new(color.maroon, 55), 1, plot.style_linebr)
+
+// ══════════════════════════════════════════════════════════════
+//  VISUALS — STRUCTURE
+// ══════════════════════════════════════════════════════════════
+// Confirmed pivot dots (offset aligns shape with the pivot bar)
+plotshape(i_sh_sig and not na(ph), "Swing High", shape.circle,
+    location.abovebar, color.new(color.orange, 20), offset=-i_swing, size=size.tiny)
+plotshape(i_sh_sig and not na(pl), "Swing Low",  shape.circle,
+    location.belowbar, color.new(color.aqua,   20), offset=-i_swing, size=size.tiny)
+
+// Last swing level lines (step-line so they stay flat until updated)
+plot(last_ph, "Last Swing High", color.new(color.orange, 55), 1, plot.style_stepline_diamond)
+plot(last_pl, "Last Swing Low",  color.new(color.aqua,   55), 1, plot.style_stepline_diamond)
+
+// MSS labels
+if i_sh_mss and mss_bull
+    label.new(bar_index, low,  "MSS ▲", yloc=yloc.belowbar,
+        style=label.style_label_up,
+        color=color.new(color.green, 15), textcolor=color.white, size=size.small)
+
+if i_sh_mss and mss_bear
+    label.new(bar_index, high, "MSS ▼", yloc=yloc.abovebar,
+        style=label.style_label_down,
+        color=color.new(color.red,   15), textcolor=color.white, size=size.small)
+
+// Entry signal labels
+plotshape(i_sh_sig and long_setup  and long_valid,  "LONG",
+    shape.labelup,   location.belowbar,
+    color=color.green, text="▲ L", textcolor=color.white, size=size.normal)
+plotshape(i_sh_sig and short_setup and short_valid, "SHORT",
+    shape.labeldown, location.abovebar,
+    color=color.red,   text="▼ S", textcolor=color.white, size=size.normal)
+
+// Subtle trend background tint
+bgcolor(d_bull ? color.new(color.green, 96) : color.new(color.red, 96))
+
+// ══════════════════════════════════════════════════════════════
+//  INFO TABLE  (top-right corner)
+// ══════════════════════════════════════════════════════════════
+var table tbl = table.new(position.top_right, 2, 8,
+    bgcolor     = color.new(color.black, 72),
+    border_color= color.new(color.gray,  50), border_width=1,
+    frame_color = color.new(color.gray,  30), frame_width =1)
+
+if barstate.islast
+    c_lbl = color.new(color.silver, 0)
+    c_on  = color.new(color.lime,   0)
+    c_off = color.new(color.gray,   0)
+    c_red = color.new(color.red,    0)
+    c_yel = color.new(color.yellow, 0)
+
+    table.cell(tbl, 0, 0, "HUNTER",    text_color=c_yel, text_size=size.small)
+    table.cell(tbl, 1, 0, "ICT/SMC",   text_color=c_yel, text_size=size.small)
+
+    table.cell(tbl, 0, 1, "Daily Bias",  text_color=c_lbl, text_size=size.small)
+    table.cell(tbl, 1, 1, d_bull ? "▲ BULL" : "▼ BEAR",
+        text_color=d_bull ? c_on : c_red, text_size=size.small)
+
+    table.cell(tbl, 0, 2, "4H Bias",     text_color=c_lbl, text_size=size.small)
+    table.cell(tbl, 1, 2, h4_bull ? "▲ BULL" : "▼ BEAR",
+        text_color=h4_bull ? c_on : c_red, text_size=size.small)
+
+    table.cell(tbl, 0, 3, "D FVG Bull",  text_color=c_lbl, text_size=size.small)
+    table.cell(tbl, 1, 3, not na(d_bfvg_z_top) ? "ACTIVE" : "—",
+        text_color=not na(d_bfvg_z_top) ? c_on : c_off, text_size=size.small)
+
+    table.cell(tbl, 0, 4, "D FVG Bear",  text_color=c_lbl, text_size=size.small)
+    table.cell(tbl, 1, 4, not na(d_sfvg_z_top) ? "ACTIVE" : "—",
+        text_color=not na(d_sfvg_z_top) ? c_red : c_off, text_size=size.small)
+
+    table.cell(tbl, 0, 5, "4H FVG Bull", text_color=c_lbl, text_size=size.small)
+    table.cell(tbl, 1, 5, not na(h4_bfvg_z_top) ? "ACTIVE" : "—",
+        text_color=not na(h4_bfvg_z_top) ? c_on : c_off, text_size=size.small)
+
+    table.cell(tbl, 0, 6, "4H FVG Bear", text_color=c_lbl, text_size=size.small)
+    table.cell(tbl, 1, 6, not na(h4_sfvg_z_top) ? "ACTIVE" : "—",
+        text_color=not na(h4_sfvg_z_top) ? c_red : c_off, text_size=size.small)
+
+    table.cell(tbl, 0, 7, "Last MSS",    text_color=c_lbl, text_size=size.small)
+    table.cell(tbl, 1, 7,
+        mss_bull ? "▲ BULL" : mss_bear ? "▼ BEAR" : "—",
+        text_color=mss_bull ? c_on : mss_bear ? c_red : c_off, text_size=size.small)

@@ -1,0 +1,5 @@
+{
+  "min_liquidation_usd": 10000,
+  "volume_multiplier": 5,
+  "volume_lookback_candles": 20
+}

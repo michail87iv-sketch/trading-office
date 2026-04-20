@@ -1,0 +1,45 @@
+# Секреты - КРИТИЧНО
+.env
+.env.local
+.env.production
+.env.save
+.env.*.local
+*.key
+*.pem
+credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+.npm/
+
+# Логи и временные файлы
+*.log
+logs/
+tmp/
+temp/
+
+# База данных и бэктесты с возможными чувствительными данными
+*.db
+*.sqlite
+*.sqlite3
+backtests/*.json
+saved_backtests/
+
+# Системное
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# История bash (может содержать ключи)
+.bash_history

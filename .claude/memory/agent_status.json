@@ -1,0 +1,27 @@
+{
+  "SCREENER": {
+    "trades": 0,
+    "pnl": 0,
+    "enabled": true
+  },
+  "HUNTER": {
+    "trades": 0,
+    "pnl": 0,
+    "enabled": false
+  },
+  "SCALPER1": {
+    "trades": 0,
+    "pnl": 0,
+    "enabled": false
+  },
+  "SCALPER2": {
+    "trades": 0,
+    "pnl": 0,
+    "enabled": false
+  },
+  "SCALPER3": {
+    "trades": 0,
+    "pnl": 0,
+    "enabled": false
+  }
+}

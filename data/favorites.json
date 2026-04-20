@@ -1,0 +1,49 @@
+{
+  "s1": [],
+  "s2": [
+    {
+      "id": "c5ed30e4-9a0e-41f7-9aee-db210d4cb5f2",
+      "name": "Test",
+      "createdAt": "2026-04-08T20:57:59.597Z",
+      "settings": {
+        "leverage": 20,
+        "riskPct": 3,
+        "tp": 25,
+        "sl": 15,
+        "maxTrades": 5,
+        "marginMode": "crossed",
+        "vwapDeviation": 0.3,
+        "minImpulse": 5,
+        "trailingStop": true,
+        "trailActivation": 1,
+        "trailDistance": 0.5,
+        "sessionFilter": false,
+        "sessionFrom": "",
+        "sessionUntil": "",
+        "sessionTz": "UTC"
+      }
+    }
+  ],
+  "s3": [
+    {
+      "id": "c7c7cbc3-a987-4a5c-be89-e51804056475",
+      "name": "Test",
+      "createdAt": "2026-04-08T21:41:07.240Z",
+      "settings": {
+        "leverage": 50,
+        "riskPct": 2,
+        "minRR": 4,
+        "slPct": 10,
+        "maxTrades": 5,
+        "marginMode": "crossed",
+        "minWallSize": 50000,
+        "maxSpread": 0.2,
+        "fibLevel": 0.618,
+        "shortOnly": true,
+        "negTpGuard": true,
+        "excludedSymbols": "XAUTUSDT"
+      }
+    }
+  ],
+  "hunter": []
+}

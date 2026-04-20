@@ -1,0 +1,155 @@
+[
+  {
+    "id": 1776278767417,
+    "name": "Sol 4 month 4h",
+    "mode": "grid",
+    "params": {
+      "rsiPeriod": 10,
+      "rsiOversold": 20,
+      "rsiOverbought": 65,
+      "leverage": 15,
+      "tp": 120,
+      "sl": 25,
+      "maxTrades": 200,
+      "tradeLimit": 0,
+      "initialCapital": 1000
+    },
+    "results": {
+      "totalPnl": 550.3047,
+      "winRate": 1,
+      "totalTrades": 25,
+      "maxDrawdown": 0,
+      "sharpeRatio": -3.695
+    },
+    "symbol": "SOLUSDT",
+    "timeframe": "4H",
+    "period": {
+      "startDate": "2026-01-01",
+      "endDate": "2026-04-15"
+    },
+    "savedAt": "2026-04-15T18:46:07.417Z"
+  },
+  {
+    "id": 1776282568121,
+    "name": "Sol 70% wr",
+    "mode": "grid",
+    "params": {
+      "rsiPeriod": 10,
+      "rsiOversold": 25,
+      "rsiOverbought": 60,
+      "leverage": 15,
+      "tp": 120,
+      "sl": 35,
+      "maxTrades": 200,
+      "tradeLimit": 0,
+      "initialCapital": 1000
+    },
+    "results": {
+      "totalPnl": 453.9195,
+      "winRate": 0.7021,
+      "totalTrades": 47,
+      "maxDrawdown": 0,
+      "sharpeRatio": -4.953
+    },
+    "symbol": "SOLUSDT",
+    "timeframe": "1H",
+    "period": {
+      "startDate": "2025-11-01",
+      "endDate": "2026-04-15"
+    },
+    "savedAt": "2026-04-15T19:49:28.121Z"
+  },
+  {
+    "id": 1776343700629,
+    "name": "Avax 4h",
+    "mode": "manual",
+    "params": {
+      "rsiPeriod": 14,
+      "rsiOversold": 25,
+      "rsiOverbought": 70,
+      "emaEnabled": false,
+      "emaPeriod": 100,
+      "leverage": 15,
+      "tp": 15,
+      "sl": 5,
+      "maxTrades": 200,
+      "tradeLimit": 50
+    },
+    "results": {
+      "totalPnl": 261.5447,
+      "winRate": 0.3939,
+      "totalTrades": 33,
+      "maxDrawdown": 13.94,
+      "sharpeRatio": 1.164
+    },
+    "symbol": "AVAXUSDT",
+    "timeframe": "4H",
+    "period": {
+      "startDate": "2026-01-01",
+      "endDate": "2026-04-16"
+    },
+    "savedAt": "2026-04-16T12:48:20.629Z"
+  },
+  {
+    "id": 1776343854917,
+    "name": "Avax 4h 7 month",
+    "mode": "manual",
+    "params": {
+      "rsiPeriod": 14,
+      "rsiOversold": 25,
+      "rsiOverbought": 70,
+      "emaEnabled": false,
+      "emaPeriod": 100,
+      "leverage": 15,
+      "tp": 15,
+      "sl": 5,
+      "maxTrades": 200,
+      "tradeLimit": 50
+    },
+    "results": {
+      "totalPnl": 1437.7,
+      "winRate": 0.6383,
+      "totalTrades": 47,
+      "maxDrawdown": 13.4,
+      "sharpeRatio": 1.958
+    },
+    "symbol": "AVAXUSDT",
+    "timeframe": "4H",
+    "period": {
+      "startDate": "2025-10-01",
+      "endDate": "2026-04-16"
+    },
+    "savedAt": "2026-04-16T12:50:54.917Z"
+  },
+  {
+    "id": 1776399732936,
+    "name": "Avax 4h 25x",
+    "mode": "manual",
+    "params": {
+      "rsiPeriod": 14,
+      "rsiOversold": 25,
+      "rsiOverbought": 70,
+      "emaEnabled": false,
+      "emaPeriod": 100,
+      "leverage": 25,
+      "tp": 15,
+      "sl": 5,
+      "maxTrades": 200,
+      "tradeLimit": 50
+    },
+    "results": {
+      "totalPnl": 1437.7,
+      "winRate": 0.6383,
+      "totalTrades": 47,
+      "maxDrawdown": 13.4,
+      "sharpeRatio": 1.958
+    },
+    "symbol": "AVAXUSDT",
+    "timeframe": "4H",
+    "period": {
+      "startDate": "2025-10-01",
+      "endDate": "2026-04-16"
+    },
+    "savedAt": "2026-04-17T04:22:12.936Z"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "global": {
+    "maxTotalRisk": 10,
+    "dailyLossLimit": 20,
+    "dailyLossEnabled": true,
+    "marketMode": "SIDEWAYS",
+    "agentPriority": [
+      "S1",
+      "S2",
+      "S3",
+      "HUNTER"
+    ],
+    "paused": false,
+    "dailyLossTriggered": false
+  }
+}
