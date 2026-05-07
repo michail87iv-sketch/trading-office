@@ -3,7 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/**/*.test.js",
+    "test:smc": "node --test tests/smc/*.test.js",
+    "ml:build-dataset": "python ml/pump-fader/data/build-dataset.py",
+    "ml:train": "python ml/pump-fader/train.py",
+    "ml:export": "python ml/pump-fader/export-onnx.py",
+    "ml:full": "npm run ml:build-dataset && npm run ml:train && npm run ml:export"
   },
   "keywords": [],
   "author": "",
@@ -13,10 +18,12 @@
     "@anthropic-ai/sdk": "^0.78.0",
     "axios": "^1.13.6",
     "basic-auth": "^2.0.1",
+    "better-sqlite3": "^12.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "node-cron": "^4.2.1",
+    "onnxruntime-node": "^1.25.1",
     "telegraf": "^4.16.3",
     "ws": "^8.20.0"
   }
