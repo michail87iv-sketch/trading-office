@@ -3,8 +3,20 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { makeAlignedSet, aggregateTF } = require('./helpers');
-const { alignTimeframes, biasFromStructure } = require('../../core/smc/multiTF');
+const { alignTimeframes, alignFromCtx, biasFromStructure } = require('../../core/smc/multiTF');
 const { precomputeSMC } = require('../../core/smc/index');
+
+describe('alignFromCtx — same result as alignTimeframes', () => {
+  it('alignFromCtx с заранее вычисленным ctx даёт идентичный результат', () => {
+    const { c1H, c4H, c1D } = makeAlignedSet(48);
+    const a = alignTimeframes(c1H, c4H, c1D);
+    const b = alignFromCtx(
+      precomputeSMC(c1H), precomputeSMC(c4H), precomputeSMC(c1D),
+      c1H, c4H, c1D,
+    );
+    assert.deepEqual(a, b);
+  });
+});
 
 describe('alignTimeframes — output shape', () => {
   it('возвращает массив длины candles1H.length', () => {

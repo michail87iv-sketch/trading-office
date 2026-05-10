@@ -63,10 +63,11 @@ function biasFromStructure(structure, upToIndex) {
  * @param {Candle[]} candles1D
  * @returns {Array<{ bias_1D, activePOI_4H, contextSwings_4H }>}
  */
-function alignTimeframes(candles1H, candles4H, candles1D) {
-  const ctx4H = precomputeSMC(candles4H);
-  const ctx1D = precomputeSMC(candles1D);
-
+/**
+ * Core alignment — works on already-computed contexts and the raw candle arrays.
+ * Candles are still required for time-based index mapping between TFs.
+ */
+function alignFromCtx(ctx1H, ctx4H, ctx1D, candles1H, candles4H, candles1D) {
   return candles1H.map(c1 => {
     const idx1D = lastClosedIndex(candles1D, c1.time, ONE_DAY_MS);
     const idx4H = lastClosedIndex(candles4H, c1.time, FOUR_H_MS);
@@ -82,4 +83,14 @@ function alignTimeframes(candles1H, candles4H, candles1D) {
   });
 }
 
-module.exports = { alignTimeframes, lastClosedIndex, biasFromStructure };
+// Thin wrapper — kept for Phase 2 tests and any caller that hasn't pre-computed contexts.
+function alignTimeframes(candles1H, candles4H, candles1D) {
+  return alignFromCtx(
+    precomputeSMC(candles1H),
+    precomputeSMC(candles4H),
+    precomputeSMC(candles1D),
+    candles1H, candles4H, candles1D,
+  );
+}
+
+module.exports = { alignTimeframes, alignFromCtx, lastClosedIndex, biasFromStructure };
