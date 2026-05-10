@@ -41,12 +41,16 @@ function activePOIs(ctx, upToIndex) {
   return out;
 }
 
+// SMC convention: BOS sets bias; Conf reinforces (does NOT reset); FakeBOS resets;
+// counter-direction BOS overwrites. Bias persists from a BOS through any number
+// of Confs until a FakeBOS or opposite-direction BOS occurs.
 function biasFromStructure(structure, upToIndex) {
   let bias = 'neutral';
   for (const ev of structure) {
     if (ev.index > upToIndex) break;
-    if (ev.type === 'BOS')                                bias = ev.direction;
-    else if (ev.type === 'FakeBOS' || ev.type === 'Conf') bias = 'neutral';
+    if (ev.type === 'BOS')          bias = ev.direction;
+    else if (ev.type === 'FakeBOS') bias = 'neutral';
+    // 'Conf' deliberately ignored — it confirms the prior BOS, bias unchanged.
   }
   return bias;
 }

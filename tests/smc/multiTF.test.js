@@ -3,7 +3,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { makeAlignedSet, aggregateTF } = require('./helpers');
-const { alignTimeframes } = require('../../core/smc/multiTF');
+const { alignTimeframes, biasFromStructure } = require('../../core/smc/multiTF');
 const { precomputeSMC } = require('../../core/smc/index');
 
 describe('alignTimeframes — output shape', () => {
@@ -55,6 +55,51 @@ describe('alignTimeframes — bias_1D', () => {
     const { c1H, c4H, c1D } = makeAlignedSet(48);
     const out = alignTimeframes(c1H, c4H, c1D);
     assert.equal(out[out.length - 1].bias_1D, 'neutral');
+  });
+});
+
+describe('biasFromStructure — Conf не сбрасывает bias (SMC convention)', () => {
+  it('bullish BOS, потом Conf → bias остаётся bullish', () => {
+    const structure = [
+      { index: 5,  type: 'BOS',  direction: 'bullish' },
+      { index: 10, type: 'Conf', direction: 'bullish' },
+    ];
+    assert.equal(biasFromStructure(structure, 15), 'bullish');
+  });
+
+  it('bullish BOS → Conf → ещё один Conf → всё ещё bullish', () => {
+    const structure = [
+      { index: 5,  type: 'BOS',  direction: 'bullish' },
+      { index: 10, type: 'Conf', direction: 'bullish' },
+      { index: 14, type: 'Conf', direction: 'bullish' },
+    ];
+    assert.equal(biasFromStructure(structure, 20), 'bullish');
+  });
+
+  it('FakeBOS после BOS → bias=neutral', () => {
+    const structure = [
+      { index: 5,  type: 'BOS',     direction: 'bullish' },
+      { index: 10, type: 'FakeBOS', direction: 'bullish' },
+    ];
+    assert.equal(biasFromStructure(structure, 15), 'neutral');
+  });
+
+  it('встречный BOS перезаписывает bias', () => {
+    const structure = [
+      { index: 5,  type: 'BOS',  direction: 'bullish' },
+      { index: 10, type: 'Conf', direction: 'bullish' },
+      { index: 15, type: 'BOS',  direction: 'bearish' },
+    ];
+    assert.equal(biasFromStructure(structure, 20), 'bearish');
+  });
+
+  it('upToIndex отсекает события за горизонтом', () => {
+    const structure = [
+      { index: 5,  type: 'BOS', direction: 'bullish' },
+      { index: 20, type: 'BOS', direction: 'bearish' },
+    ];
+    assert.equal(biasFromStructure(structure, 10), 'bullish');
+    assert.equal(biasFromStructure(structure, 25), 'bearish');
   });
 });
 
