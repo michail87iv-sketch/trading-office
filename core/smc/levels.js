@@ -19,4 +19,19 @@ function getStopLossPrice(setup, opts = {}) {
   throw new Error(`unknown direction: ${setup.direction}`);
 }
 
-module.exports = { getStopLossPrice };
+function getTakeProfitPrice(entry, sl, rr) {
+  if (entry === sl) throw new Error('entry equals sl — risk is zero');
+  const risk = Math.abs(entry - sl);
+  const isLong = entry > sl;
+  const tp = isLong ? entry + risk * rr : entry - risk * rr;
+  return +tp.toFixed(8);
+}
+
+function getRiskRewardRatio(entry, sl, tp) {
+  const risk   = Math.abs(entry - sl);
+  const reward = Math.abs(tp - entry);
+  if (risk === 0) return 0;
+  return +(reward / risk).toFixed(4);
+}
+
+module.exports = { getStopLossPrice, getTakeProfitPrice, getRiskRewardRatio };

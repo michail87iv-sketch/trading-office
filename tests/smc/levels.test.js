@@ -2,7 +2,7 @@
 'use strict';
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { getStopLossPrice } = require('../../core/smc/levels');
+const { getStopLossPrice, getTakeProfitPrice, getRiskRewardRatio } = require('../../core/smc/levels');
 
 describe('getStopLossPrice', () => {
   it('long на +SNR [100..105] с buffer 0.5% → 99.50', () => {
@@ -32,5 +32,26 @@ describe('getStopLossPrice', () => {
       zone: { high: 50, low: 48 },
     });
     assert.equal(sl, +(48 * 0.995).toFixed(8));
+  });
+});
+
+describe('getTakeProfitPrice', () => {
+  it('long entry=100 sl=99 rr=2.5 → tp=102.5', () => {
+    assert.equal(getTakeProfitPrice(100, 99, 2.5), 102.5);
+  });
+  it('short entry=100 sl=101 rr=2.5 → tp=97.5', () => {
+    assert.equal(getTakeProfitPrice(100, 101, 2.5), 97.5);
+  });
+  it('бросает если entry == sl', () => {
+    assert.throws(() => getTakeProfitPrice(100, 100, 2));
+  });
+});
+
+describe('getRiskRewardRatio', () => {
+  it('long: entry=100 sl=99 tp=102.5 → 2.5', () => {
+    assert.equal(getRiskRewardRatio(100, 99, 102.5), 2.5);
+  });
+  it('short: entry=100 sl=101 tp=97.5 → 2.5', () => {
+    assert.equal(getRiskRewardRatio(100, 101, 97.5), 2.5);
   });
 });
