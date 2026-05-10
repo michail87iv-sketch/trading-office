@@ -18,6 +18,29 @@ function lastClosedIndex(candles, asOfMs, barLenMs) {
   return ans;
 }
 
+function lastStrongSwing(swings, type, upToIndex) {
+  let last = null;
+  for (const s of swings) {
+    if (s.index > upToIndex) break;
+    if (s.type === type && s.strength === 'strong') last = s;
+  }
+  return last;
+}
+
+function activePOIs(ctx, upToIndex) {
+  const out = [];
+  for (const snr of ctx.snrs) {
+    if (snr.indexEnd <= upToIndex && snr.valid) out.push({ kind: 'SNR', ...snr });
+  }
+  for (const fvg of ctx.fvgs) {
+    if (fvg.index <= upToIndex) out.push({ kind: 'FVG', ...fvg });
+  }
+  for (const rb of ctx.rbs) {
+    if (rb.index <= upToIndex) out.push({ kind: 'RB', ...rb });
+  }
+  return out;
+}
+
 function biasFromStructure(structure, upToIndex) {
   let bias = 'neutral';
   for (const ev of structure) {
@@ -37,16 +60,20 @@ function biasFromStructure(structure, upToIndex) {
  * @returns {Array<{ bias_1D, activePOI_4H, contextSwings_4H }>}
  */
 function alignTimeframes(candles1H, candles4H, candles1D) {
-  precomputeSMC(candles4H);
+  const ctx4H = precomputeSMC(candles4H);
   const ctx1D = precomputeSMC(candles1D);
 
   return candles1H.map(c1 => {
     const idx1D = lastClosedIndex(candles1D, c1.time, ONE_DAY_MS);
+    const idx4H = lastClosedIndex(candles4H, c1.time, FOUR_H_MS);
     const bias_1D = idx1D < 0 ? 'neutral' : biasFromStructure(ctx1D.structure, idx1D);
     return {
       bias_1D,
-      activePOI_4H: [],
-      contextSwings_4H: { lastStrongHigh: null, lastStrongLow: null },
+      activePOI_4H: idx4H < 0 ? [] : activePOIs(ctx4H, idx4H),
+      contextSwings_4H: {
+        lastStrongHigh: idx4H < 0 ? null : lastStrongSwing(ctx4H.swings, 'high', idx4H),
+        lastStrongLow:  idx4H < 0 ? null : lastStrongSwing(ctx4H.swings, 'low',  idx4H),
+      },
     };
   });
 }
