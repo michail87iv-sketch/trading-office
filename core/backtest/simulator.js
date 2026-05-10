@@ -143,6 +143,8 @@ class TradeSimulator {
       contracts,
       notional,
       openedAt: candle.time,
+      setupType: sig.setupType ?? null,
+      meta:      sig.meta ?? null,
     });
   }
 
@@ -187,6 +189,8 @@ class TradeSimulator {
         openedAt:  trade.openedAt,
         closedAt:  candle.time,
         contracts: +contracts.toFixed(8),
+        setupType: trade.setupType ?? null,
+        meta:      trade.meta ?? null,
       });
     }
 
@@ -268,6 +272,8 @@ class TradeSimulator {
         openedAt:   trade.openedAt,
         closedAt:   time,
         contracts:  +trade.contracts.toFixed(8),
+        setupType:  trade.setupType ?? null,
+        meta:       trade.meta ?? null,
       });
     }
     this.openTrades = [];
