@@ -48,6 +48,46 @@
 
 ## SMC BACKTEST
 
+### 2026-05-10 — Phase 3 Complete: strategySmcHunter + первый baseline
+
+**Задача:** Реализовать модуль `core/backtest/strategySmcHunter.js` (Pattern B: precompute+signal) с 8 setup-типами (SNR/RB/FVG-intra+cross/FP-intra+cross), прогнать baseline на 14 символах × 1 год.
+
+**Изменённые файлы:**
+- `core/smc/setups/_helpers.js` (NEW) — `nearestLiquidityTarget`, `computeSlTp` (liquidity-priority с fixed-RR=2 fallback), `reactionAt4HZone`, `detectFP`, `find1HValidator`, константы `MIN_RR_FLOOR=1.5 / RR_FALLBACK=2.0 / WICK_RATIO=0.5`
+- `core/smc/setups/snr.js` (NEW) — SNR_4H detector
+- `core/smc/setups/rb.js` (NEW) — RB_4H detector с 1H-swing валидатором
+- `core/smc/setups/fvg.js` (NEW) — FVG_4H + cross-варианты с VC-валидатором (close beyond FVG, wick allowed, ratio≥0.5)
+- `core/smc/setups/fp.js` (NEW) — FP_4H intra/cross с recency=3 4H-баров
+- `core/backtest/strategySmcHunter.js` (NEW) — Pattern B-модуль; приоритет setup'ов: FP > FVG > RB > SNR
+- `core/backtest/simulator.js` — `_openTrade/_checkPositions/closeAll` пробрасывают `setupType`+`meta` из signal-объекта в `trades[]` (backwards-compat: legacy 'long'/'short' string)
+- `scripts/cache-phase3-data.js` (NEW) — кэширует 14 × 3TF × 365д через `fetchCandles`
+- `scripts/runBacktest.js` (NEW) — runner; читает `requiredTimeframes`, выполняет precompute → итерация 1H, JSON в `runs/phase3-baseline-<ts>.json`
+- 6 новых test-файлов в `tests/smc/setups/` + `tests/smc/strategy.test.js`
+
+**Принятые интерпретации (по ответам пользователя на pre-Phase3 вопросы):**
+1. MB / MTV / IOFED — отложены: MTV = опечатка для SNR; MB и IOFED требуют clarification по PDF, baseline без них.
+2. Strict bias_1D: при `bias_1D = neutral` сетапы не открываются вообще (FP включительно).
+3. EQH/EQL включены в `liquidity` как BSL/SSL соответственно для расчёта TP.
+4. Min-RR floor 1.5: если liquidity-target даёт RR<1.5 — fallback на fixed RR=2.0.
+5. VC-not-inside-FVG: close обязан быть за границей FVG; фитиль внутри допустим, ratio_wick/range≥0.5.
+6. Conf не сбрасывает bias (Phase 2 fix), FakeBOS — сбрасывает.
+
+**Результат проверки:**
+- Тесты: 115/115 ✅ (`node --test tests/smc/*.test.js tests/smc/setups/*.test.js`)
+- Baseline (`runs/phase3-baseline-2026-05-10T19-33-41-081Z.json`):
+  - **Aggregate:** 415 trades, winRate 33.73%, PnL +5.77 USDT (на $100, 1 год), Sharpe 0.163
+  - **Distribution:** RB_4H 312/wr33%/-19.7 · SNR_4H 88/wr34%/-1.4 · FP_4H_SNR_1H 14/wr43%/+24.4 · FVG_4H_SNR_1H 1/wr100%/+2.6
+  - **Per-symbol лидеры:** BNB +20.9, BTC +10.1, DOGE +9.4, LINK +6.2, SHIB +5.5
+  - **Per-symbol худшие:** XRP -18.4, SOL -13.2, AVAX -8.2, FARTCOIN -4.6, PEPE -4.4
+
+**TODO к калибровке:**
+- ⚠️ Не выполнен порог ≥5/год: чистые `FVG_4H`, `FP_4H`, `FP_4H_FVG_1H`, `FP_4H_RB_1H`, `FVG_4H_FVG_1H`, `FVG_4H_RB_1H` дали 0 — пересмотреть условия активации (4H FVG-recency, FP recency, soft-confluence порог).
+- RB_4H явно перевешивает (75% сделок, отрицательный PnL) — слишком слабый 1H-swing валидатор; рассмотреть требование рейкции (rejection wick) у самого RB или ограничить близостью к зоне.
+- Распределение лонг/шорт по символам — добавить в распечатку.
+- MB/IOFED — после уточнений в PDF.
+
+---
+
 ### 2026-05-10 — Phase 2 Complete: Multi-TF Context + TradeSimulator Extension
 
 **Задача:** Исполнить `plans/phase2-multitf-simulator.md` inline (executing-plans). Подготовить инфраструктуру для написания SMC-стратегии в Phase 3.
