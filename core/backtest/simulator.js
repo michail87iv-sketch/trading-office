@@ -83,14 +83,22 @@ class TradeSimulator {
     // 1. Check existing positions
     this._checkPositions(candle);
 
+    // Normalise signal: legacy 'long'|'short' string OR { direction, tpPrice?, slPrice? }
+    let sigObj = null;
+    if (signal === 'long' || signal === 'short') {
+      sigObj = { direction: signal };
+    } else if (signal && typeof signal === 'object' && (signal.direction === 'long' || signal.direction === 'short')) {
+      sigObj = signal;
+    }
+
     // 2. Open new position
     if (
-      signal !== null &&
+      sigObj &&
       this.openTrades.length < this.maxTrades &&
       !this._inCooldown(candle.time) &&
       (this.tradeLimit === 0 || this.trades.length < this.tradeLimit)
     ) {
-      this._openTrade(candle, signal);
+      this._openTrade(candle, sigObj);
     }
 
     // 3. Record equity (unrealised PnL not counted — conservative)
@@ -104,12 +112,22 @@ class TradeSimulator {
     return time - this.lastSlTime < this.cooldownMs;
   }
 
-  _openTrade(candle, direction) {
-    const entry = candle.close;
+  _openTrade(candle, sig) {
+    const direction = sig.direction;
+    const entry     = candle.close;
+    const isLong    = direction === 'long';
+
+    const slPrice = (sig.slPrice != null)
+      ? sig.slPrice
+      : (isLong ? entry * (1 - this.slPct) : entry * (1 + this.slPct));
+
+    const tpPrice = (sig.tpPrice != null)
+      ? sig.tpPrice
+      : (isLong ? entry * (1 + this.tpPct) : entry * (1 - this.tpPct));
 
     // Position sizing: risk a fixed % of current capital on the SL distance
     const riskUSDT  = this.capital * (this.riskPct / 100);
-    const slGap     = entry * this.slPct;           // absolute price distance to SL
+    const slGap     = Math.abs(entry - slPrice);
     const contracts = slGap > 0 ? riskUSDT / slGap : 0;
     if (contracts <= 0) return;
 
@@ -117,18 +135,11 @@ class TradeSimulator {
     const openFee   = notional * this.feeRate;
     this.capital   -= openFee;                      // fee paid on entry
 
-    const tp = direction === 'long'
-      ? entry * (1 + this.tpPct)
-      : entry * (1 - this.tpPct);
-    const sl = direction === 'long'
-      ? entry * (1 - this.slPct)
-      : entry * (1 + this.slPct);
-
     this.openTrades.push({
       direction,
       entry,
-      tp,
-      sl,
+      tp: tpPrice,
+      sl: slPrice,
       contracts,
       notional,
       openedAt: candle.time,
