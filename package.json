@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test tests/**/*.test.js",
-    "test:smc": "node --test tests/smc/*.test.js",
+    "test:smc": "node --test tests/smc/*.test.js tests/smc/setups/*.test.js",
     "ml:build-dataset": "python ml/pump-fader/data/build-dataset.py",
     "ml:train": "python ml/pump-fader/train.py",
     "ml:export": "python ml/pump-fader/export-onnx.py",
